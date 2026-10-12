@@ -2,209 +2,150 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-  <meta name="theme-color" content="#071111">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#07151b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Prototipo de HUD de realidad aumentada con cámara en vivo y telemetría simulada.">
-  <title>AEROVISION — HUD LAB</title>
+  <title>AEROVISION // GHOST HUNTER</title>
   <style>
-    :root { --hud: #a3ffca; --hud-soft: rgba(163,255,202,.55); --hud-muted: rgba(163,255,202,.22); --glass: rgba(6,25,24,.76); --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
-    * { box-sizing: border-box; }
-    html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#061011; color:#eafff4; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-tap-highlight-color:transparent; }
-    button { font:inherit; cursor:pointer; color:inherit; }
-    button:focus-visible { outline:2px solid white; outline-offset:3px; }
-    .screen { position:relative; width:100%; height:100vh; height:100dvh; min-height:450px; overflow:hidden; isolation:isolate; background:#071414; }
-    .demo-backdrop { position:absolute; inset:0; background:radial-gradient(ellipse 100% 65% at 50% 27%,#355756 0%,#162d30 45%,#0b191f 90%); }
-    .demo-backdrop::before { content:""; position:absolute; inset:26% -20% 0; background:linear-gradient(0deg,#081519 4%,transparent 85%); clip-path:polygon(0 55%,12% 42%,21% 48%,36% 22%,48% 40%,60% 27%,71% 42%,83% 17%,100% 39%,100% 100%,0 100%); opacity:.8; }
-    .demo-backdrop::after { content:""; position:absolute; inset:58% -30% -20%; background:linear-gradient(145deg,rgba(12,30,34,.2),#061216); clip-path:polygon(0 48%,17% 37%,42% 52%,61% 20%,79% 38%,100% 22%,100% 100%,0 100%); }
-    video { position:absolute; width:100%; height:100%; inset:0; object-fit:cover; display:none; }
-    video.mirror { transform:scaleX(-1); }
-    .camera-on video { display:block; }
-    .camera-on .demo-backdrop { display:none; }
-    .vignette { position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,7,8,.68),transparent 23%,transparent 65%,rgba(0,7,8,.82)),linear-gradient(90deg,rgba(0,7,8,.36),transparent 24%,transparent 76%,rgba(0,7,8,.36)); pointer-events:none; }
-    .grid { position:absolute; inset:0; opacity:.18; pointer-events:none; background:linear-gradient(90deg,transparent calc(50% - .5px),var(--hud-muted) 50%,transparent calc(50% + .5px)),repeating-linear-gradient(0deg,transparent 0,transparent 79px,rgba(163,255,202,.14) 80px),repeating-linear-gradient(90deg,transparent 0,transparent 79px,rgba(163,255,202,.14) 80px); mask-image:linear-gradient(180deg,transparent 8%,black 35%,black 76%,transparent 95%); }
-    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-    .top { position:absolute; top:calc(var(--safe-t) + 19px); left:20px; right:20px; display:flex; justify-content:space-between; align-items:start; z-index:3; gap:16px; }
-    .brand { font-size:10px; letter-spacing:.26em; font-weight:700; color:var(--hud); }
-    .brand strong { display:block; font-size:21px; letter-spacing:.15em; color:#f1fff6; margin:6px 0 3px; }
-    .subbrand { font-size:9px; letter-spacing:.1em; opacity:.75; }
-    .mode { display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
-    .chip { border:1px solid var(--hud-muted); background:rgba(4,19,18,.6); padding:6px 8px; font-size:9px; font-weight:700; letter-spacing:.11em; color:var(--hud); border-radius:4px; white-space:nowrap; }
-    .live-indicator::before { content:""; display:inline-block; width:6px; height:6px; background:var(--hud); border-radius:50%; margin-right:7px; box-shadow:0 0 8px var(--hud); }
-    .sweep { position:absolute; inset:15% 6% 24%; z-index:1; pointer-events:none; background:linear-gradient(180deg,transparent 0%,rgba(163,255,202,.10) 49%,rgba(163,255,202,.26) 50%,transparent 51%); background-size:100% 220px; animation:sweep 6s linear infinite; opacity:.5; }
-    @keyframes sweep { from { background-position:0 -250px; } to { background-position:0 1100px; } }
-    .hud-layer { position:absolute; inset:0; z-index:2; pointer-events:none; color:var(--hud); text-shadow:0 0 12px rgba(0,0,0,.6); }
-    .left-data, .right-data { position:absolute; top:31%; display:flex; flex-direction:column; gap:15px; width:105px; }
-    .left-data { left:18px; }
-    .right-data { right:18px; align-items:flex-end; text-align:right; }
-    .data-label { font-size:9px; letter-spacing:.2em; opacity:.76; margin-bottom:5px; }
-    .data-value { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:36px; font-weight:600; letter-spacing:-.06em; line-height:1; }
-    .data-value.small { font-size:26px; }
-    .data-unit { display:block; font-size:9px; letter-spacing:.12em; opacity:.75; margin-top:5px; }
-    .data-bar { width:90px; height:3px; background:var(--hud-muted); margin-top:9px; overflow:hidden; }
-    .data-fill { display:block; height:100%; width:40%; background:var(--hud); box-shadow:0 0 8px var(--hud); transition:width .3s ease; }
-    .reticle { position:absolute; left:50%; top:48%; width:min(62vw,325px); max-height:43vh; aspect-ratio:1; transform:translate(-50%,-50%); filter:drop-shadow(0 0 5px rgba(163,255,202,.16)); }
-    .reticle svg { width:100%; height:100%; overflow:visible; }
-    .reticle circle,.reticle path,.reticle line,.reticle rect { stroke:var(--hud); fill:none; stroke-width:1.1; vector-effect:non-scaling-stroke; }
-    .reticle .dim { opacity:.33; }
-    .reticle .strong { stroke-width:2.2; }
-    .reticle .moving { transform-origin:50% 50%; animation:reticle-pulse 3s ease-in-out infinite; }
-    @keyframes reticle-pulse { 50% { transform:scale(1.06); opacity:.65; } }
-    .target { position:absolute; left:61%; top:24%; width:52px; height:42px; transition:transform .18s linear; }
-    .target .boxmark { position:absolute; inset:0; border:1px dashed rgba(163,255,202,.65); background:rgba(163,255,202,.035); }
-    .target .boxmark::before,.target .boxmark::after { content:""; position:absolute; width:8px; height:8px; border-color:var(--hud); }
-    .target .boxmark::before { top:-2px; left:-2px; border-top:2px solid;border-left:2px solid; }
-    .target .boxmark::after { bottom:-2px; right:-2px; border-right:2px solid;border-bottom:2px solid; }
-    .target .target-label { position:absolute; top:47px; left:0; font-size:8px; letter-spacing:.08em; white-space:nowrap; background:rgba(0,18,18,.57); padding:3px; }
-    .horizon { position:absolute; top:66%; width:100%; text-align:center; font-size:10px; letter-spacing:.28em; opacity:.6; }
-    .horizon:before,.horizon:after { content:""; display:inline-block; vertical-align:middle; width:15vw; max-width:95px; height:1px; background:var(--hud-soft); margin:0 10px; }
-    .compass { position:absolute; bottom:calc(var(--safe-b) + 169px); left:50%; transform:translateX(-50%); width:min(82vw,390px); text-align:center; }
-    .compass-caption { font-size:9px; opacity:.8; letter-spacing:.22em; margin-bottom:9px; }
-    .compass-track { position:relative; border-top:1px solid var(--hud-soft); display:flex; align-items:start; justify-content:space-around; padding-top:8px; font-size:10px; letter-spacing:.13em; overflow:hidden; }
-    .compass-track:before { content:""; position:absolute; top:0; height:9px; width:2px; background:var(--hud); left:50%; box-shadow:0 0 7px var(--hud); }
-    .bottom { position:absolute; bottom:calc(var(--safe-b) + 16px); left:16px; right:16px; z-index:5; }
-    .safety { text-align:center; letter-spacing:.12em; font-size:9px; color:rgba(238,255,249,.72); margin-bottom:12px; text-shadow:0 1px 7px black; }
-    .toolbar { padding:8px; border:1px solid rgba(163,255,202,.20); border-radius:18px; background:rgba(2,15,16,.83); backdrop-filter:blur(16px); display:flex; gap:7px; box-shadow:0 14px 55px rgba(0,0,0,.28); }
-    .tool { flex:1; background:transparent; border:1px solid transparent; border-radius:12px; min-height:54px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:10px; color:#c0d8d0; }
-    .tool svg { width:18px; height:18px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
-    .tool.primary { background:rgba(163,255,202,.13); color:var(--hud); border-color:var(--hud-muted); }
-    .tool:active { transform:scale(.97); }
-    .welcome { position:absolute; z-index:10; inset:0; background:rgba(1,11,13,.78); backdrop-filter:blur(13px); display:flex; align-items:center; justify-content:center; padding:24px; }
-    .welcome.hidden { display:none; }
-    .welcome-card { max-width:385px; width:100%; border:1px solid rgba(163,255,202,.34); background:linear-gradient(155deg,rgba(18,49,45,.96),rgba(2,18,20,.98)); border-radius:22px; padding:30px 23px 24px; box-shadow:0 30px 80px rgba(0,0,0,.4); }
-    .welcome .eyebrow { font:700 10px ui-monospace,monospace; letter-spacing:.27em; color:var(--hud); }
-    .welcome h1 { margin:12px 0; font-size:38px; line-height:1.04; font-weight:700; letter-spacing:-.05em; }
-    .welcome p { color:#b5cbc3; line-height:1.55; font-size:14px; margin:0 0 22px; }
-    .cta { background:var(--hud); border:0; color:#09241c; border-radius:12px; width:100%; min-height:51px; font-weight:800; font-size:14px; }
-    .secondary { margin-top:11px; display:block; width:100%; border:1px solid rgba(163,255,202,.31); border-radius:12px; background:transparent; height:47px; color:#e2fff0; font-size:13px; }
-    .welcome small { display:block; font-size:10px; line-height:1.5; color:#91aaa3; margin-top:17px; }
-    .sheet-wrap { position:absolute; inset:0; z-index:11; display:none; align-items:end; background:rgba(0,0,0,.56); }
-    .sheet-wrap.show { display:flex; }
-    .sheet { width:100%; padding:22px 22px calc(var(--safe-b) + 27px); border-radius:25px 25px 0 0; border:1px solid rgba(163,255,202,.25); background:#102222; box-shadow:0 -16px 65px rgba(0,0,0,.35); }
-    .sheet-head { display:flex; justify-content:space-between; align-items:center; }
-    .sheet h2 { font-size:19px; margin:0 0 18px; }
-    .close { border:0; background:transparent; font-size:24px; line-height:1; padding:8px; }
-    .setting { display:flex; align-items:center; justify-content:space-between; gap:15px; padding:14px 0; border-top:1px solid rgba(163,255,202,.13); font-size:13px; }
-    .setting input { accent-color:#a3ffca; width:20px; height:20px; }
-    .setting select { background:#1b3331; color:white; border:1px solid #4b7265; border-radius:8px; padding:9px; }
-    .sheet-note { font-size:11px; line-height:1.5; color:#aac4b9; margin-top:14px; }
-    .toast { position:absolute; bottom:calc(var(--safe-b) + 100px); left:18px; right:18px; z-index:14; background:rgba(1,17,19,.95); color:#e5fff2; border:1px solid rgba(163,255,202,.45); font-size:12px; line-height:1.5; border-radius:12px; padding:12px 15px; display:none; box-shadow:0 12px 30px rgba(0,0,0,.3); }
-    .toast.show { display:block; }
-    .hide-hud .hud-layer,.hide-hud .grid,.hide-hud .sweep { display:none; }
-    @media(max-width:360px){.left-data{left:12px}.right-data{right:12px}.data-value{font-size:30px}.data-value.small{font-size:22px}.reticle{width:58vw}.top{left:14px;right:14px}.brand strong{font-size:18px}}
-    @media(max-height:680px){.left-data,.right-data{top:27%}.reticle{width:min(49vw,260px);top:46%}.compass{bottom:calc(var(--safe-b) + 145px)}.bottom{bottom:calc(var(--safe-b) + 8px)}.horizon{top:64%}.top{top:calc(var(--safe-t) + 10px)}.toolbar .tool{min-height:43px}.safety{font-size:8px;margin-bottom:6px}}
-    @media(orientation:landscape){.reticle{width:min(30vw,45vh);top:48%}.left-data,.right-data{top:30%}.compass{bottom:calc(var(--safe-b) + 97px);width:33vw}.bottom{left:auto;right:calc(env(safe-area-inset-right, 0px) + 14px);bottom:calc(var(--safe-b) + 12px);width:300px}.toolbar .tool{min-height:42px}.safety{font-size:7px}.brand strong{font-size:17px}.horizon{top:76%}}
-    @media(prefers-reduced-motion:reduce){.sweep,.reticle .moving{animation:none}}
+    :root{color-scheme:dark;--ice:#92fbff;--cyan:#43f2f2;--ink:#041018;--hot:#ff6586}
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#061219;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:white;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+    #app{position:fixed;inset:0;overflow:hidden;isolation:isolate;background:radial-gradient(circle at 40% 50%,#173b47 0%,#07151d 58%,#010a12 100%)}
+    #camera{width:100%;height:100%;position:absolute;inset:0;object-fit:cover;transform:translateZ(0);z-index:0;background:transparent}
+    .atmo{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(2,9,15,.54) 0%,transparent 24%,transparent 69%,rgba(2,9,15,.73) 100%),radial-gradient(circle,transparent 35%,rgba(0,0,0,.33) 100%)}
+    .grid{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:.14;background:repeating-linear-gradient(0deg,transparent 0 37px,rgba(95,255,247,.22) 38px,transparent 39px),repeating-linear-gradient(90deg,transparent 0 37px,rgba(95,255,247,.18) 38px,transparent 39px);mask-image:linear-gradient(180deg,transparent,black 25%,black 72%,transparent)}
+    #field{position:absolute;inset:0;z-index:3;width:100%;height:100%;touch-action:none;cursor:crosshair}
+    .ui{position:absolute;inset:0;z-index:4;pointer-events:none;padding:max(17px,env(safe-area-inset-top)) 17px max(20px,env(safe-area-inset-bottom));display:flex;flex-direction:column;justify-content:space-between}
+    .topline{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .id{display:flex;align-items:center;gap:8px;min-width:0;font-size:10px;font-weight:800;letter-spacing:1.9px;color:var(--ice);text-shadow:0 0 15px rgba(67,242,242,.5)}
+    .id .diamond{display:inline-block;width:10px;height:10px;border:2px solid var(--cyan);transform:rotate(45deg);box-shadow:0 0 11px var(--cyan)}
+    .pill{font-size:9px;letter-spacing:1px;white-space:nowrap;color:#b9fffa;background:rgba(4,23,29,.68);border:1px solid rgba(99,248,239,.35);padding:7px 9px;border-radius:5px}
+    #camstate{display:flex;gap:6px;align-items:center}.dot{width:5px;height:5px;background:#65fddd;border-radius:50%;box-shadow:0 0 7px #65fddd}
+    #camstate.demo .dot{background:#ffbd68;box-shadow:0 0 7px #ffbd68}
+    .stats{margin-top:20px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+    .stat{display:flex;flex-direction:column;gap:5px;min-width:85px}.stat.right{text-align:right;align-items:flex-end}
+    .cap{color:rgba(183,255,255,.72);font-size:10px;letter-spacing:2px}
+    .big{font-size:36px;font-weight:850;line-height:1;letter-spacing:-2px;font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(49,241,234,.24)}
+    #lives{display:flex;gap:6px;font-size:27px;line-height:1.1;color:#ff708f;text-shadow:0 0 12px #ff6089}
+    .heart.dead{color:rgba(230,242,244,.19);text-shadow:none}
+    .midline{align-self:center;text-align:center;opacity:.65;display:flex;flex-direction:column;align-items:center;gap:8px}
+    .midline .tag{font-size:10px;letter-spacing:2.4px;color:var(--ice)}
+    .crosshair{width:38px;height:38px;position:relative;opacity:.7}.crosshair:before,.crosshair:after{content:"";position:absolute;background:rgba(113,255,250,.72)}.crosshair:before{width:1px;height:38px;left:18px;top:0}.crosshair:after{height:1px;width:38px;top:18px;left:0}.crosshair span{position:absolute;border:1px solid rgba(113,255,250,.8);border-radius:50%;width:16px;height:16px;left:11px;top:11px;background:rgba(11,67,75,.12)}
+    .bottom{display:flex;flex-direction:column;align-items:center;gap:10px}
+    #streak{min-height:18px;color:#fff4a9;font-size:11px;letter-spacing:2px;text-shadow:0 0 14px rgba(255,211,105,.55)}
+    .help{font-size:11px;letter-spacing:1.5px;color:#bdfefa;text-shadow:0 1px 6px #031316;text-align:center}
+    .bar{width:180px;height:3px;background:rgba(121,255,244,.21);border-radius:3px;overflow:hidden}
+    #danger{height:100%;width:0%;background:linear-gradient(90deg,#6cf9e9,#ff647c);transition:width .14s linear}
+    .actions{position:absolute;right:17px;top:calc(max(17px,env(safe-area-inset-top)) + 134px);z-index:6;display:flex;flex-direction:column;gap:9px}
+    .smallbtn{pointer-events:auto;border:1px solid rgba(125,247,242,.43);color:#c5ffff;background:rgba(2,18,25,.72);width:42px;height:42px;display:grid;place-items:center;border-radius:9px;font-size:21px;font-family:inherit;box-shadow:inset 0 0 14px rgba(63,223,226,.05)}
+    .smallbtn:active{background:rgba(34,88,93,.8);transform:scale(.96)}.smallbtn:disabled{opacity:.35}
+    .overlay{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:calc(28px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(2,12,20,.86),rgba(3,19,29,.92));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+    .overlay[hidden]{display:none}
+    .panel{width:min(100%,430px);text-align:center;display:flex;flex-direction:column;align-items:center;gap:15px}
+    .eyebrow{font-size:10px;color:#86f0ed;letter-spacing:3.5px}
+    h1{margin:0;font-size:clamp(35px,11vw,55px);line-height:.94;letter-spacing:-1.5px;font-weight:900;text-shadow:0 0 35px rgba(58,231,231,.37)}h1 em{font-style:normal;color:#83fff3}
+    .subtitle{max-width:290px;color:#bfd5d9;font-size:12px;line-height:1.8;letter-spacing:.2px;margin:0}
+    .ghostLogo{filter:drop-shadow(0 0 28px rgba(80,246,236,.42));animation:float 3s ease-in-out infinite}
+    @keyframes float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-10px) rotate(3deg)}}
+    .rule{width:100%;max-width:325px;border:1px solid rgba(107,235,238,.23);background:rgba(14,46,57,.28);padding:13px 17px;border-radius:11px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .rule div{display:flex;flex-direction:column;gap:6px}.rule b{font-size:20px;color:#9dfff7}.rule span{font-size:9px;color:#9bb9c2;letter-spacing:1px}
+    .mainbtn{width:100%;max-width:325px;min-height:56px;border:0;border-radius:10px;background:linear-gradient(125deg,#9cfff4,#55dfed);font-size:13px;font-weight:900;letter-spacing:1.8px;color:#05252b;box-shadow:0 7px 40px rgba(52,225,219,.24);font-family:inherit;touch-action:manipulation}
+    .mainbtn:active{filter:brightness(.9);transform:scale(.99)}
+    .linkbtn{border:0;background:transparent;color:#b4eef1;font-size:11px;font-family:inherit;letter-spacing:1.2px;padding:12px;touch-action:manipulation}
+    .micro{font-size:10px;color:#77979e;letter-spacing:.4px;line-height:1.5;max-width:315px}
+    #toast{position:absolute;top:42%;left:50%;z-index:8;transform:translate(-50%,-50%);pointer-events:none;text-align:center;font-size:14px;color:#b0fff8;letter-spacing:2px;font-weight:900;text-shadow:0 0 18px #59eaf1,0 2px 8px #03171d;opacity:0;transition:opacity .12s;white-space:nowrap}
+    #toast.show{opacity:1}
+    #hitFlash{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;background:radial-gradient(circle,transparent 20%,rgba(255,44,82,.6) 100%)}
+    #hitFlash.go{animation:damage .55s ease-out}@keyframes damage{0%{opacity:1}100%{opacity:0}}
+    #cameraPreview{position:absolute;left:0;right:0;bottom:0;height:80px;z-index:0;pointer-events:none}
+    @media(max-height:690px){.panel{gap:9px}.ghostLogo{height:90px;width:90px}.rule{padding:9px}.subtitle{line-height:1.5}.actions{top:calc(max(17px,env(safe-area-inset-top)) + 115px)}}
+    @media(min-width:700px){.ui{padding-left:32px;padding-right:32px}.actions{right:32px}.stats{margin-top:25px}.big{font-size:43px}}
   </style>
 </head>
 <body>
-  <main id="app" class="screen" aria-label="AEROVISION, simulador de visor HUD">
-    <div class="demo-backdrop" aria-hidden="true"></div>
-    <video id="camera" autoplay muted playsinline webkit-playsinline aria-label="Imagen de la cámara en vivo"></video>
-    <div class="vignette" aria-hidden="true"></div>
-    <div class="grid" aria-hidden="true"></div>
-    <div class="sweep" aria-hidden="true"></div>
-
-    <header class="top">
-      <div class="brand mono">HUD LAB / 001<strong>AEROVISION</strong><span class="subbrand">INTERFAZ EXPERIMENTAL</span></div>
-      <div class="mode mono"><span class="chip">SIMULACIÓN</span><span id="mode" class="chip live-indicator">DEMO</span></div>
-    </header>
-
-    <section class="hud-layer" aria-label="Telemetría simulada">
-      <div class="left-data">
-        <div><div class="data-label mono">VELOCIDAD</div><div id="speed" class="data-value">082</div><span class="data-unit mono">KM/H · SIM</span><div class="data-bar"><span id="speedbar" class="data-fill"></span></div></div>
-        <div><div class="data-label mono">MOTOR</div><div id="rpm" class="data-value small">5.240</div><span class="data-unit mono">RPM · SIM</span></div>
-      </div>
-      <div class="right-data">
-        <div><div class="data-label mono">ALTITUD</div><div id="alt" class="data-value">0128</div><span class="data-unit mono">M · SIM</span></div>
-        <div><div class="data-label mono">RUMBO</div><div id="heading" class="data-value small">074°</div><span class="data-unit mono">GRADOS · SIM</span></div>
-      </div>
-      <div class="reticle" aria-hidden="true">
-        <svg viewBox="0 0 300 300">
-          <circle cx="150" cy="150" r="93" class="dim" stroke-dasharray="6 12"/>
-          <circle cx="150" cy="150" r="58" class="dim"/>
-          <circle cx="150" cy="150" r="14" class="moving"/>
-          <path class="strong" d="M49 92 V49 H92 M208 49 H251 V92 M49 208 V251 H92 M208 251 H251 V208"/>
-          <path d="M150 31 V79 M150 221 V269 M31 150 H79 M221 150 H269"/>
-          <path d="M132 150 H168 M150 132 V168" class="strong"/>
-          <path d="M89 150 H109 M191 150 H211 M150 89 V109 M150 191 V211"/>
-          <path d="M112 148 L126 148 M174 148 L188 148" class="dim"/>
-        </svg>
-      </div>
-      <div class="target mono" id="target" aria-hidden="true"><div class="boxmark"></div><div class="target-label">OBJETIVO SIM / 01</div></div>
-      <div class="horizon mono">REFERENCIA VISUAL</div>
-      <div class="compass mono"><div class="compass-caption">ORIENTACIÓN SIMULADA · <span id="compasshead">074°</span></div><div class="compass-track"><span>NW</span><span>330</span><span>N</span><span>030</span><span>NE</span></div></div>
-    </section>
-
-    <footer class="bottom">
-      <div class="safety mono">DATOS FICTICIOS · NO UTILIZAR PARA CONDUCIR</div>
-      <nav class="toolbar" aria-label="Controles del HUD">
-        <button class="tool primary" id="cameraBtn" type="button"><svg viewBox="0 0 24 24"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg><span id="cameraText">Cámara</span></button>
-        <button class="tool" id="flipBtn" type="button"><svg viewBox="0 0 24 24"><path d="M4 10V5l3-3M4 5h10a6 6 0 0 1 6 6M20 14v5l-3 3m3-3H10a6 6 0 0 1-6-6"/></svg><span>Girar</span></button>
-        <button class="tool" id="demoBtn" type="button"><svg viewBox="0 0 24 24"><path d="M3 8V4h4M21 8V4h-4M3 16v4h4M21 16v4h-4M3 12h18"/></svg><span>Demo</span></button>
-        <button class="tool" id="settingsBtn" type="button"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="#102222"/><circle cx="15" cy="12" r="2" fill="#102222"/><circle cx="9" cy="18" r="2" fill="#102222"/></svg><span>Opciones</span></button>
-      </nav>
-    </footer>
-
-    <div id="welcome" class="welcome" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
-      <div class="welcome-card"><div class="eyebrow">PROTOTIPO / HUD 01</div><h1 id="welcomeTitle">Tu cámara.<br>Otro nivel.</h1><p>Visualización en vivo con un HUD estilo aviación. Los instrumentos son simulados y se actualizan automáticamente.</p><button id="startBtn" class="cta" type="button">Activar cámara en vivo →</button><button id="previewBtn" class="secondary" type="button">Explorar sin cámara</button><small>La cámara se utiliza únicamente en tu dispositivo. No grabamos, almacenamos ni enviamos imágenes.</small></div>
+<div id="app">
+  <video id="camera" autoplay muted playsinline webkit-playsinline disablepictureinpicture></video>
+  <div class="atmo"></div><div class="grid"></div>
+  <canvas id="field" aria-label="Campo de juego: toca los fantasmas para eliminarlos"></canvas>
+  <div id="hitFlash"></div><div id="toast" aria-live="polite"></div>
+  <div class="ui" aria-hidden="true">
+    <div>
+      <div class="topline"><div class="id"><i class="diamond"></i>AEROVISION / GHOST HUNTER</div><div id="camstate" class="pill demo"><span class="dot"></span><span id="camlabel">EN ESPERA</span></div></div>
+      <div class="stats"><div class="stat"><span class="cap">PUNTOS</span><span class="big" id="score">0000</span><span class="cap" id="level">NIVEL 01</span></div><div class="stat right"><span class="cap">VIDAS</span><div id="lives"><span class="heart">♥</span><span class="heart">♥</span><span class="heart">♥</span></div><span class="cap" id="kills">0 CAPTURADOS</span></div></div>
     </div>
-
-    <div id="settings" class="sheet-wrap" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-      <div class="sheet"><div class="sheet-head"><h2 id="settingsTitle">Opciones del HUD</h2><button class="close" id="closeSettings" aria-label="Cerrar opciones" type="button">×</button></div>
-        <label class="setting">Color de los indicadores <select id="theme"><option value="green">Verde táctico</option><option value="cyan">Cian</option><option value="amber">Ámbar</option></select></label>
-        <label class="setting">Mostrar indicadores <input id="hudToggle" type="checkbox" checked></label>
-        <label class="setting">Animar datos simulados <input id="animateToggle" type="checkbox" checked></label>
-        <p class="sheet-note">Este prototipo no mide velocidad, altitud, RPM ni detecta objetos. Todos esos valores y el recuadro de objetivo son demostrativos.</p>
-      </div>
+    <div class="midline"><div class="crosshair"><span></span></div><span class="tag">PROTOCOLO DE CONTENCIÓN</span></div>
+    <div class="bottom"><div id="streak"></div><div class="help">TOCÁ LOS FANTASMAS ANTES DE QUE LLEGUEN</div><div class="bar"><div id="danger"></div></div></div>
+  </div>
+  <div class="actions"><button type="button" class="smallbtn" id="soundBtn" aria-label="Silenciar sonido" title="Sonido">♫</button><button type="button" class="smallbtn" id="flipBtn" aria-label="Cambiar cámara" title="Cambiar cámara">⇄</button><button type="button" class="smallbtn" id="pauseBtn" aria-label="Pausar juego" title="Pausa" disabled>Ⅱ</button></div>
+  <div class="overlay" id="intro">
+    <div class="panel">
+      <div class="eyebrow">AEROVISION // ARCADE EXPERIMENT</div>
+      <svg class="ghostLogo" viewBox="0 0 128 138" width="118" height="128" aria-hidden="true"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4ffff"/><stop offset=".6" stop-color="#8df5fa"/><stop offset="1" stop-color="#6996ff"/></linearGradient></defs><path d="M23 73C23 39 40 17 65 17s43 23 43 56v43l-20-11-13 16-14-16-18 15-20-12Z" fill="url(#gg)" fill-opacity=".93" stroke="#c6ffff" stroke-width="2"/><ellipse cx="48" cy="69" rx="8" ry="12" fill="#12384d"/><ellipse cx="81" cy="69" rx="8" ry="12" fill="#12384d"/><circle cx="50" cy="66" r="2.5" fill="#ff7f9b"/><circle cx="83" cy="66" r="2.5" fill="#ff7f9b"/><ellipse cx="65" cy="92" rx="9" ry="12" fill="#164058"/></svg>
+      <h1>GHOST<br><em>HUNTER</em></h1>
+      <p class="subtitle">Los fantasmas invaden tu mundo. Eliminálos tocándolos antes de que lleguen hasta vos.</p>
+      <div class="rule"><div><b>◉</b><span>TOCÁ PARA DISPARAR</span></div><div><b>♥♥♥</b><span>3 VIDAS</span></div><div><b>↗</b><span>CADA VEZ MÁS RÁPIDOS</span></div></div>
+      <button type="button" class="mainbtn" id="startBtn">ACTIVAR CÁMARA Y JUGAR →</button>
+      <button type="button" class="linkbtn" id="demoBtn">JUGAR SIN CÁMARA</button>
+      <div class="micro">La cámara se usa solamente en tu dispositivo. El juego no graba ni envía imágenes.</div>
     </div>
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  </main>
-  <script>
-  (() => {
-    'use strict';
-    const $ = id => document.getElementById(id);
-    const app=$('app'),video=$('camera'),welcome=$('welcome'),mode=$('mode');
-    let stream=null,face='environment',running=true,toastTimer=0,elapsed=0,lastTick=performance.now(),busy=false;
-    function message(txt){const t=$('toast');t.textContent=txt;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),6200);}
-    function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;} video.srcObject=null;app.classList.remove('camera-on');video.classList.remove('mirror');mode.textContent='DEMO';$('cameraText').textContent='Cámara';}
-    async function startCamera(){
-      if(busy)return;
-      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){welcome.classList.add('hidden');message('La cámara requiere Safari en una dirección HTTPS. Publicá el archivo en GitHub Pages para activarla.');return;}
-      busy=true;
-      if(stream)stopCamera();
-      try{
-        const newStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:face},width:{ideal:1280},height:{ideal:720}}});
-        stream=newStream;video.srcObject=stream;video.classList.toggle('mirror',face==='user');
-        await video.play();app.classList.add('camera-on');mode.textContent='EN VIVO';$('cameraText').textContent='Apagar';welcome.classList.add('hidden');
-      } catch(err){
-        stopCamera();welcome.classList.add('hidden');
-        const reason=err && err.name;
-        message(reason==='NotAllowedError'?'No se autorizó la cámara. Revisá el permiso de Safari para este sitio y volvé a tocar Cámara.':reason==='NotFoundError'?'No se encontró una cámara disponible.':'No fue posible abrir la cámara. Probá en Safari mediante HTTPS y verificá que otra app no la esté usando.');
-      } finally{busy=false;}
-    }
-    $('startBtn').addEventListener('click',startCamera);
-    $('previewBtn').addEventListener('click',()=>welcome.classList.add('hidden'));
-    $('cameraBtn').addEventListener('click',()=>stream?stopCamera():startCamera());
-    $('flipBtn').addEventListener('click',()=>{face=face==='environment'?'user':'environment';if(stream)startCamera();else message('Seleccionaste cámara '+(face==='environment'?'trasera':'frontal')+'. Tocá Cámara para activarla.');});
-    $('demoBtn').addEventListener('click',()=>{stopCamera();message('Modo demostración activado. Todos los indicadores son simulados.');});
-    $('settingsBtn').addEventListener('click',()=>{$('settings').classList.add('show');$('closeSettings').focus();});
-    $('closeSettings').addEventListener('click',()=>{$('settings').classList.remove('show');$('settingsBtn').focus();});
-    $('settings').addEventListener('click',e=>{if(e.target===$('settings'))$('settings').classList.remove('show');});
-    document.addEventListener('keydown',e=>{if(e.key==='Escape')$('settings').classList.remove('show');});
-    $('hudToggle').addEventListener('change',e=>app.classList.toggle('hide-hud',!e.target.checked));
-    $('animateToggle').addEventListener('change',e=>{running=e.target.checked;});
-    $('theme').addEventListener('change',e=>{const palettes={green:['#a3ffca','rgba(163,255,202,.55)','rgba(163,255,202,.22)'],cyan:['#88eaff','rgba(136,234,255,.55)','rgba(136,234,255,.22)'],amber:['#ffd57e','rgba(255,213,126,.55)','rgba(255,213,126,.22)']};const p=palettes[e.target.value];document.documentElement.style.setProperty('--hud',p[0]);document.documentElement.style.setProperty('--hud-soft',p[1]);document.documentElement.style.setProperty('--hud-muted',p[2]);});
-    function update(now){
-      const dt=Math.min((now-lastTick)/1000,.15);lastTick=now;if(running)elapsed+=dt;
-      const t=elapsed,speed=Math.round(83+15*Math.sin(t*.33)+4*Math.sin(t*1.17)),rpm=Math.round(5230+850*Math.sin(t*.46)+240*Math.cos(t*1.3)),alt=Math.round(128+17*Math.sin(t*.16)),heading=(74+Math.round(25*Math.sin(t*.12))+360)%360;
-      $('speed').textContent=String(Math.max(0,speed)).padStart(3,'0');$('rpm').textContent=Math.max(0,rpm).toLocaleString('de-DE');$('alt').textContent=String(Math.max(0,alt)).padStart(4,'0');$('heading').textContent=String(heading).padStart(3,'0')+'°';$('compasshead').textContent=String(heading).padStart(3,'0')+'°';$('speedbar').style.width=Math.max(5,Math.min(100,speed/160*100))+'%';$('target').style.transform='translate('+Math.sin(t*.48)*18+'px,'+Math.cos(t*.31)*11+'px)';
-      setTimeout(()=>requestAnimationFrame(update),100);
-    }
-    requestAnimationFrame(update);
-    window.addEventListener('pagehide',stopCamera);
-  })();
-  </script>
+  </div>
+  <div class="overlay" id="end" hidden><div class="panel"><div class="eyebrow" id="endKicker">MISIÓN FINALIZADA</div><svg viewBox="0 0 100 100" width="88" height="88" aria-hidden="true"><path d="M18 82L48 18l30 64M25 64h47" fill="none" stroke="#8cfbf2" stroke-width="4"/><circle cx="50" cy="51" r="17" fill="none" stroke="#ff7896" stroke-width="3"/><path d="M42 51h16M50 43v16" stroke="#ff7896" stroke-width="2"/></svg><h1 id="endTitle">GAME<br><em>OVER</em></h1><p class="subtitle" id="endText">Los fantasmas llegaron a tu posición.</p><div class="rule"><div><b id="finalScore">0</b><span>PUNTOS</span></div><div><b id="finalKills">0</b><span>CAPTURADOS</span></div><div><b id="finalBest">0</b><span>RÉCORD</span></div></div><button type="button" class="mainbtn" id="restartBtn">VOLVER A JUGAR →</button><button type="button" class="linkbtn" id="homeBtn">VOLVER AL INICIO</button></div></div>
+</div>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const app=$('app'),canvas=$('field'),ctx=canvas.getContext('2d',{alpha:true}),video=$('camera');
+const intro=$('intro'),end=$('end'),scoreEl=$('score'),levelEl=$('level'),killsEl=$('kills'),livesEl=$('lives'),streakEl=$('streak'),dangerEl=$('danger'),toast=$('toast'),flash=$('hitFlash'),cameraLabel=$('camlabel'),cameraState=$('camstate');
+let W=0,H=0,dpr=1,mode='menu',life=3,score=0,kills=0,streak=0,best=0,level=1,ghosts=[],effects=[],sparks=[],spawnIn=0,elapsed=0,shot=0,stream=null,facing='environment',soundOn=true,audio=null,last=0,toastTimer=0,ghostId=0;
+try{best=Number(localStorage.getItem('aerovision_ghost_best'))||0}catch(_){best=0}
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),lerp=(a,b,t)=>a+(b-a)*t,rand=(a,b)=>a+Math.random()*(b-a);
+function resize(){const b=app.getBoundingClientRect();W=Math.max(1,b.width);H=Math.max(1,b.height);dpr=Math.min(2,window.devicePixelRatio||1);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',resize);resize();
+function updateUI(){scoreEl.textContent=String(score).padStart(4,'0');levelEl.textContent='NIVEL '+String(level).padStart(2,'0');killsEl.textContent=kills+' CAPTURADOS';livesEl.querySelectorAll('.heart').forEach((e,i)=>e.classList.toggle('dead',i>=life));streakEl.textContent=streak>=2?'COMBO x'+streak+' · +BONUS':''}
+function labelCamera(isLive){cameraState.classList.toggle('demo',!isLive);cameraLabel.textContent=isLive?'CÁMARA EN VIVO':'MODO SIN CÁMARA';$('flipBtn').disabled=!isLive}
+function beep(type){if(!soundOn)return;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;if(!audio)audio=new AC();if(audio.state==='suspended')audio.resume();const t=audio.currentTime,o=audio.createOscillator(),g=audio.createGain();o.connect(g);g.connect(audio.destination);if(type==='fire'){o.type='triangle';o.frequency.setValueAtTime(460,t);o.frequency.exponentialRampToValueAtTime(170,t+.10);g.gain.setValueAtTime(.08,t);g.gain.exponentialRampToValueAtTime(.001,t+.12);o.start(t);o.stop(t+.13)}else if(type==='kill'){o.type='sine';o.frequency.setValueAtTime(340,t);o.frequency.exponentialRampToValueAtTime(1100,t+.19);g.gain.setValueAtTime(.14,t);g.gain.exponentialRampToValueAtTime(.001,t+.24);o.start(t);o.stop(t+.25)}else{ o.type='sawtooth';o.frequency.setValueAtTime(155,t);o.frequency.exponentialRampToValueAtTime(45,t+.3);g.gain.setValueAtTime(.13,t);g.gain.exponentialRampToValueAtTime(.001,t+.35);o.start(t);o.stop(t+.36)}}catch(_){}}
+function notify(message){toast.textContent=message;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),850)}
+async function activateCamera(nextFacing){if(!navigator.mediaDevices?.getUserMedia){labelCamera(false);return false}let incoming;try{incoming=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:nextFacing},width:{ideal:1280},height:{ideal:720}}});video.srcObject=incoming;video.style.transform=nextFacing==='user'?'scaleX(-1)':'none';await video.play();if(stream&&stream!==incoming)stream.getTracks().forEach(t=>t.stop());stream=incoming;facing=nextFacing;labelCamera(true);return true}catch(err){if(incoming)incoming.getTracks().forEach(t=>t.stop());labelCamera(!!stream);return false}}
+function reset(){mode='playing';life=3;score=0;kills=0;streak=0;level=1;elapsed=0;spawnIn=.6;ghosts=[];effects=[];sparks=[];shot=0;last=0;end.hidden=true;intro.hidden=true;$('pauseBtn').disabled=false;$('pauseBtn').textContent='Ⅱ';dangerEl.style.width='0';updateUI();notify('DEFENDÉ TU POSICIÓN')}
+async function start(withCam){$('startBtn').disabled=true;$('startBtn').textContent='ACTIVANDO...';if(withCam){const ok=await activateCamera(facing);if(!ok)notify('CÁMARA NO DISPONIBLE · MODO DEMO')}else labelCamera(false);$('startBtn').disabled=false;$('startBtn').textContent='ACTIVAR CÁMARA Y JUGAR →';reset()}
+$('startBtn').addEventListener('click',()=>start(true));$('demoBtn').addEventListener('click',()=>start(false));$('restartBtn').addEventListener('click',reset);
+$('homeBtn').addEventListener('click',()=>{mode='menu';end.hidden=true;intro.hidden=false;$('pauseBtn').disabled=true;ghosts=[];effects=[];sparks=[];ctx.clearRect(0,0,W,H)});
+$('pauseBtn').addEventListener('click',()=>{if(mode==='playing')pause();else if(mode==='paused')resume()});
+function pause(){mode='paused';$('pauseBtn').textContent='▶';$('endKicker').textContent='JUEGO EN PAUSA';$('endTitle').innerHTML='MISIÓN<br><em>PAUSADA</em>';$('endText').textContent='Los fantasmas te esperan.';$('finalScore').textContent=score;$('finalKills').textContent=kills;$('finalBest').textContent=best;$('restartBtn').textContent='REINICIAR PARTIDA →';end.hidden=false;
+const resumeBtn=document.createElement('button');resumeBtn.type='button';resumeBtn.id='resumeBtn';resumeBtn.className='mainbtn';resumeBtn.textContent='CONTINUAR →';resumeBtn.addEventListener('click',resume);$('restartBtn').before(resumeBtn)}
+function resume(){mode='playing';end.hidden=true;$('resumeBtn')?.remove();$('pauseBtn').textContent='Ⅱ';last=0}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='playing')pause()});
+$('soundBtn').addEventListener('click',()=>{soundOn=!soundOn;$('soundBtn').textContent=soundOn?'♫':'♪̸';$('soundBtn').setAttribute('aria-label',soundOn?'Silenciar sonido':'Activar sonido')});
+$('flipBtn').addEventListener('click',async()=>{if(!stream)return;const btn=$('flipBtn');btn.disabled=true;const ok=await activateCamera(facing==='environment'?'user':'environment');btn.disabled=false;if(!ok)notify('NO SE PUDO CAMBIAR CÁMARA')});
+function spawn(){const id=++ghostId;const palette=[['#a8ffff','#6ae7f6'],['#edd6ff','#a28cfb'],['#d4ffde','#6ceab1']][Math.floor(Math.random()*3)];const duration=Math.max(2.5,7.5-level*.44+rand(-.5,.75));ghosts.push({id,x:rand(.19,.81),y:rand(.31,.7),shift:rand(0,6.28),speed:rand(.6,1.2),age:0,duration,cx:W*.5,cy:H*.5,size:40,colors:palette,warning:false})}
+function gameOver(){mode='over';$('pauseBtn').disabled=true;$('resumeBtn')?.remove();if(score>best){best=score;try{localStorage.setItem('aerovision_ghost_best',String(best))}catch(_){}}$('endKicker').textContent='SEÑAL PERDIDA';$('endTitle').innerHTML='GAME<br><em>OVER</em>';$('endText').textContent='Los fantasmas llegaron hasta vos. ¿Volvemos a intentarlo?';$('finalScore').textContent=score;$('finalKills').textContent=kills;$('finalBest').textContent=best;$('restartBtn').textContent='VOLVER A JUGAR →';end.hidden=false;beep('hurt')}
+function update(dt){elapsed+=dt;level=1+Math.floor(kills/6);spawnIn-=dt;const limit=level<=2?2:3;if(spawnIn<=0&&ghosts.length<limit){spawn();spawnIn=Math.max(.92,2.35-level*.11+rand(-.25,.25))}else if(spawnIn<-.6)spawnIn=-.6;
+let nearest=0;for(let i=ghosts.length-1;i>=0;i--){const g=ghosts[i];g.age+=dt;const f=clamp(g.age/g.duration,0,1);g.size=Math.min(W*.66,lerp(Math.max(38,W*.115),Math.max(170,W*.6),f*f));g.cx=W*(g.x+Math.sin(elapsed*g.speed+g.shift)*.075);g.cy=H*(g.y+Math.sin(elapsed*1.8+g.shift)*.033);nearest=Math.max(nearest,f);
+if(f>.78&&!g.warning){g.warning=true;notify('⚠ FANTASMA CERCA')}
+if(f>=1){ghosts.splice(i,1);life--;streak=0;updateUI();beep('hurt');flash.classList.remove('go');void flash.offsetWidth;flash.classList.add('go');if(navigator.vibrate)navigator.vibrate([80,40,80]);if(life<=0){gameOver();break}else notify('−1 VIDA')}}dangerEl.style.width=(nearest*100)+'%';effects=effects.filter(p=>(p.life-=dt)>0);sparks=sparks.filter(p=>(p.life-=dt)>0);shot=Math.max(0,shot-dt);updateUI()}
+function ellipse(x,y,rx,ry,color){ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=color;ctx.fill()}
+function drawGhost(g,t){const s=g.size;ctx.save();ctx.translate(g.cx,g.cy);const a=clamp(.63+g.age*.18,0,1);ctx.globalAlpha=a;
+// Glow and distance rings
+const halo=ctx.createRadialGradient(0,0,s*.03,0,0,s*.86);halo.addColorStop(0,'rgba(100,255,249,.17)');halo.addColorStop(.5,'rgba(110,208,255,.12)');halo.addColorStop(1,'rgba(60,234,254,0)');ellipse(0,0,s*.88,s*.91,halo);
+ctx.strokeStyle=g.warning?'rgba(255,95,127,.7)':'rgba(105,245,251,.36)';ctx.lineWidth=1.3;ctx.setLineDash(g.warning?[5,5]:[3,8]);ctx.beginPath();ctx.ellipse(0,0,s*.52,s*.65,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+ctx.shadowColor=g.colors[1];ctx.shadowBlur=s*.18;
+const grad=ctx.createLinearGradient(-s*.3,-s*.52,s*.32,s*.5);grad.addColorStop(0,'rgba(255,255,255,.97)');grad.addColorStop(.44,g.colors[0]);grad.addColorStop(1,g.colors[1]);ctx.fillStyle=grad;ctx.strokeStyle='rgba(229,255,255,.88)';ctx.lineWidth=Math.max(.8,s*.012);
+ctx.beginPath();ctx.moveTo(-s*.39,s*.15);ctx.lineTo(-s*.39,-s*.07);ctx.bezierCurveTo(-s*.39,-s*.51,s*.39,-s*.53,s*.39,-s*.07);ctx.lineTo(s*.39,s*.34);ctx.quadraticCurveTo(s*.34,s*.50,s*.18,s*.33);ctx.quadraticCurveTo(s*.1,s*.48,0,s*.34);ctx.quadraticCurveTo(-s*.16,s*.51,-s*.24,s*.33);ctx.quadraticCurveTo(-s*.38,s*.47,-s*.39,s*.15);ctx.closePath();ctx.fill();ctx.stroke();ctx.shadowBlur=0;
+// Arms
+ctx.strokeStyle=g.colors[0];ctx.lineWidth=s*.085;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-s*.30,0);ctx.lineTo(-s*.49,s*.07+Math.sin(t*3+g.shift)*s*.04);ctx.moveTo(s*.30,0);ctx.lineTo(s*.5,s*.08-Math.sin(t*3+g.shift)*s*.04);ctx.stroke();
+// Eyes
+ellipse(-s*.15,-s*.105,s*.07,s*.11,'#123249');ellipse(s*.15,-s*.105,s*.07,s*.11,'#123249');ellipse(-s*.13,-s*.13,s*.023,s*.032,'#ff86ac');ellipse(s*.17,-s*.13,s*.023,s*.032,'#ff86ac');
+ctx.lineWidth=s*.023;ctx.strokeStyle='#1c4b5d';ctx.beginPath();ctx.moveTo(-s*.23,-s*.235);ctx.lineTo(-s*.085,-s*.19);ctx.moveTo(s*.23,-s*.235);ctx.lineTo(s*.085,-s*.19);ctx.stroke();ellipse(0,s*.12,s*.072,s*.085,'#143b50');ellipse(s*.015,s*.15,s*.025,s*.021,'#ff83aa');
+if(g.warning){ctx.strokeStyle='rgba(255,112,133,.8)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,s*.58,-Math.PI/2,-Math.PI/2+Math.PI*2*clamp(g.age/g.duration,0,1));ctx.stroke()}
+ctx.restore()}
+function burst(x,y,color){for(let j=0;j<27;j++){const a=rand(0,Math.PI*2),v=rand(55,245),l=rand(.35,.8);sparks.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:l,max:l,color,r:rand(1.3,4.5)})}effects.push({x,y,life:.36,max:.36,type:'ring',color})}
+function shotAt(x,y){if(mode!=='playing')return;beep('fire');effects.push({x,y,life:.22,max:.22,type:'shot',color:'#95fff5'});for(let i=ghosts.length-1;i>=0;i--){const g=ghosts[i];let nx=(x-g.cx)/(g.size*.48),ny=(y-g.cy)/(g.size*.54);if(nx*nx+ny*ny<=1){ghosts.splice(i,1);kills++;streak++;const gain=100+Math.min(300,(streak-1)*25);score+=gain;burst(g.cx,g.cy,g.colors[1]);beep('kill');notify('+'+gain+' · ¡CAPTURADO!');if(navigator.vibrate)navigator.vibrate(25);updateUI();return}}streak=0;updateUI()}
+canvas.addEventListener('pointerdown',e=>{e.preventDefault();const r=canvas.getBoundingClientRect();shotAt(e.clientX-r.left,e.clientY-r.top)},{passive:false});
+function draw(t,dt){ctx.clearRect(0,0,W,H);if(mode==='playing')update(dt);for(const g of ghosts)drawGhost(g,t);for(const e of effects){const p=1-e.life/e.max;ctx.save();ctx.globalAlpha=e.life/e.max;if(e.type==='ring'){ctx.strokeStyle=e.color;ctx.lineWidth=3*(1-p)+1;ctx.beginPath();ctx.arc(e.x,e.y,lerp(8,100,p),0,Math.PI*2);ctx.stroke();ctx.fillStyle='#eaffff';ctx.font='bold 13px monospace';ctx.textAlign='center';ctx.fillText('✦',e.x,e.y-35-p*30)}else{ctx.strokeStyle='#d0fff9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(e.x,e.y,lerp(3,24,p),0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(e.x-9,e.y);ctx.lineTo(e.x+9,e.y);ctx.moveTo(e.x,e.y-9);ctx.lineTo(e.x,e.y+9);ctx.stroke()}ctx.restore()}
+for(const p of sparks){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=110*dt;ctx.globalAlpha=clamp(p.life/p.max,0,1);ellipse(p.x,p.y,p.r,p.r,p.color)}ctx.globalAlpha=1}
+function loop(ms){const t=ms*.001,dt=last?Math.min(.05,t-last):0;last=t;draw(t,dt);requestAnimationFrame(loop)}requestAnimationFrame(loop);
+labelCamera(false);updateUI();
+})();
+</script>
 </body>
 </html>
