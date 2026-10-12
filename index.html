@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#071111">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Prototipo de HUD de realidad aumentada con cámara en vivo y telemetría simulada.">
+  <title>AEROVISION — HUD LAB</title>
+  <style>
+    :root { --hud: #a3ffca; --hud-soft: rgba(163,255,202,.55); --hud-muted: rgba(163,255,202,.22); --glass: rgba(6,25,24,.76); --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
+    * { box-sizing: border-box; }
+    html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#061011; color:#eafff4; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-tap-highlight-color:transparent; }
+    button { font:inherit; cursor:pointer; color:inherit; }
+    button:focus-visible { outline:2px solid white; outline-offset:3px; }
+    .screen { position:relative; width:100%; height:100vh; height:100dvh; min-height:450px; overflow:hidden; isolation:isolate; background:#071414; }
+    .demo-backdrop { position:absolute; inset:0; background:radial-gradient(ellipse 100% 65% at 50% 27%,#355756 0%,#162d30 45%,#0b191f 90%); }
+    .demo-backdrop::before { content:""; position:absolute; inset:26% -20% 0; background:linear-gradient(0deg,#081519 4%,transparent 85%); clip-path:polygon(0 55%,12% 42%,21% 48%,36% 22%,48% 40%,60% 27%,71% 42%,83% 17%,100% 39%,100% 100%,0 100%); opacity:.8; }
+    .demo-backdrop::after { content:""; position:absolute; inset:58% -30% -20%; background:linear-gradient(145deg,rgba(12,30,34,.2),#061216); clip-path:polygon(0 48%,17% 37%,42% 52%,61% 20%,79% 38%,100% 22%,100% 100%,0 100%); }
+    video { position:absolute; width:100%; height:100%; inset:0; object-fit:cover; display:none; }
+    video.mirror { transform:scaleX(-1); }
+    .camera-on video { display:block; }
+    .camera-on .demo-backdrop { display:none; }
+    .vignette { position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,7,8,.68),transparent 23%,transparent 65%,rgba(0,7,8,.82)),linear-gradient(90deg,rgba(0,7,8,.36),transparent 24%,transparent 76%,rgba(0,7,8,.36)); pointer-events:none; }
+    .grid { position:absolute; inset:0; opacity:.18; pointer-events:none; background:linear-gradient(90deg,transparent calc(50% - .5px),var(--hud-muted) 50%,transparent calc(50% + .5px)),repeating-linear-gradient(0deg,transparent 0,transparent 79px,rgba(163,255,202,.14) 80px),repeating-linear-gradient(90deg,transparent 0,transparent 79px,rgba(163,255,202,.14) 80px); mask-image:linear-gradient(180deg,transparent 8%,black 35%,black 76%,transparent 95%); }
+    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    .top { position:absolute; top:calc(var(--safe-t) + 19px); left:20px; right:20px; display:flex; justify-content:space-between; align-items:start; z-index:3; gap:16px; }
+    .brand { font-size:10px; letter-spacing:.26em; font-weight:700; color:var(--hud); }
+    .brand strong { display:block; font-size:21px; letter-spacing:.15em; color:#f1fff6; margin:6px 0 3px; }
+    .subbrand { font-size:9px; letter-spacing:.1em; opacity:.75; }
+    .mode { display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+    .chip { border:1px solid var(--hud-muted); background:rgba(4,19,18,.6); padding:6px 8px; font-size:9px; font-weight:700; letter-spacing:.11em; color:var(--hud); border-radius:4px; white-space:nowrap; }
+    .live-indicator::before { content:""; display:inline-block; width:6px; height:6px; background:var(--hud); border-radius:50%; margin-right:7px; box-shadow:0 0 8px var(--hud); }
+    .sweep { position:absolute; inset:15% 6% 24%; z-index:1; pointer-events:none; background:linear-gradient(180deg,transparent 0%,rgba(163,255,202,.10) 49%,rgba(163,255,202,.26) 50%,transparent 51%); background-size:100% 220px; animation:sweep 6s linear infinite; opacity:.5; }
+    @keyframes sweep { from { background-position:0 -250px; } to { background-position:0 1100px; } }
+    .hud-layer { position:absolute; inset:0; z-index:2; pointer-events:none; color:var(--hud); text-shadow:0 0 12px rgba(0,0,0,.6); }
+    .left-data, .right-data { position:absolute; top:31%; display:flex; flex-direction:column; gap:15px; width:105px; }
+    .left-data { left:18px; }
+    .right-data { right:18px; align-items:flex-end; text-align:right; }
+    .data-label { font-size:9px; letter-spacing:.2em; opacity:.76; margin-bottom:5px; }
+    .data-value { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:36px; font-weight:600; letter-spacing:-.06em; line-height:1; }
+    .data-value.small { font-size:26px; }
+    .data-unit { display:block; font-size:9px; letter-spacing:.12em; opacity:.75; margin-top:5px; }
+    .data-bar { width:90px; height:3px; background:var(--hud-muted); margin-top:9px; overflow:hidden; }
+    .data-fill { display:block; height:100%; width:40%; background:var(--hud); box-shadow:0 0 8px var(--hud); transition:width .3s ease; }
+    .reticle { position:absolute; left:50%; top:48%; width:min(62vw,325px); max-height:43vh; aspect-ratio:1; transform:translate(-50%,-50%); filter:drop-shadow(0 0 5px rgba(163,255,202,.16)); }
+    .reticle svg { width:100%; height:100%; overflow:visible; }
+    .reticle circle,.reticle path,.reticle line,.reticle rect { stroke:var(--hud); fill:none; stroke-width:1.1; vector-effect:non-scaling-stroke; }
+    .reticle .dim { opacity:.33; }
+    .reticle .strong { stroke-width:2.2; }
+    .reticle .moving { transform-origin:50% 50%; animation:reticle-pulse 3s ease-in-out infinite; }
+    @keyframes reticle-pulse { 50% { transform:scale(1.06); opacity:.65; } }
+    .target { position:absolute; left:61%; top:24%; width:52px; height:42px; transition:transform .18s linear; }
+    .target .boxmark { position:absolute; inset:0; border:1px dashed rgba(163,255,202,.65); background:rgba(163,255,202,.035); }
+    .target .boxmark::before,.target .boxmark::after { content:""; position:absolute; width:8px; height:8px; border-color:var(--hud); }
+    .target .boxmark::before { top:-2px; left:-2px; border-top:2px solid;border-left:2px solid; }
+    .target .boxmark::after { bottom:-2px; right:-2px; border-right:2px solid;border-bottom:2px solid; }
+    .target .target-label { position:absolute; top:47px; left:0; font-size:8px; letter-spacing:.08em; white-space:nowrap; background:rgba(0,18,18,.57); padding:3px; }
+    .horizon { position:absolute; top:66%; width:100%; text-align:center; font-size:10px; letter-spacing:.28em; opacity:.6; }
+    .horizon:before,.horizon:after { content:""; display:inline-block; vertical-align:middle; width:15vw; max-width:95px; height:1px; background:var(--hud-soft); margin:0 10px; }
+    .compass { position:absolute; bottom:calc(var(--safe-b) + 169px); left:50%; transform:translateX(-50%); width:min(82vw,390px); text-align:center; }
+    .compass-caption { font-size:9px; opacity:.8; letter-spacing:.22em; margin-bottom:9px; }
+    .compass-track { position:relative; border-top:1px solid var(--hud-soft); display:flex; align-items:start; justify-content:space-around; padding-top:8px; font-size:10px; letter-spacing:.13em; overflow:hidden; }
+    .compass-track:before { content:""; position:absolute; top:0; height:9px; width:2px; background:var(--hud); left:50%; box-shadow:0 0 7px var(--hud); }
+    .bottom { position:absolute; bottom:calc(var(--safe-b) + 16px); left:16px; right:16px; z-index:5; }
+    .safety { text-align:center; letter-spacing:.12em; font-size:9px; color:rgba(238,255,249,.72); margin-bottom:12px; text-shadow:0 1px 7px black; }
+    .toolbar { padding:8px; border:1px solid rgba(163,255,202,.20); border-radius:18px; background:rgba(2,15,16,.83); backdrop-filter:blur(16px); display:flex; gap:7px; box-shadow:0 14px 55px rgba(0,0,0,.28); }
+    .tool { flex:1; background:transparent; border:1px solid transparent; border-radius:12px; min-height:54px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:10px; color:#c0d8d0; }
+    .tool svg { width:18px; height:18px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+    .tool.primary { background:rgba(163,255,202,.13); color:var(--hud); border-color:var(--hud-muted); }
+    .tool:active { transform:scale(.97); }
+    .welcome { position:absolute; z-index:10; inset:0; background:rgba(1,11,13,.78); backdrop-filter:blur(13px); display:flex; align-items:center; justify-content:center; padding:24px; }
+    .welcome.hidden { display:none; }
+    .welcome-card { max-width:385px; width:100%; border:1px solid rgba(163,255,202,.34); background:linear-gradient(155deg,rgba(18,49,45,.96),rgba(2,18,20,.98)); border-radius:22px; padding:30px 23px 24px; box-shadow:0 30px 80px rgba(0,0,0,.4); }
+    .welcome .eyebrow { font:700 10px ui-monospace,monospace; letter-spacing:.27em; color:var(--hud); }
+    .welcome h1 { margin:12px 0; font-size:38px; line-height:1.04; font-weight:700; letter-spacing:-.05em; }
+    .welcome p { color:#b5cbc3; line-height:1.55; font-size:14px; margin:0 0 22px; }
+    .cta { background:var(--hud); border:0; color:#09241c; border-radius:12px; width:100%; min-height:51px; font-weight:800; font-size:14px; }
+    .secondary { margin-top:11px; display:block; width:100%; border:1px solid rgba(163,255,202,.31); border-radius:12px; background:transparent; height:47px; color:#e2fff0; font-size:13px; }
+    .welcome small { display:block; font-size:10px; line-height:1.5; color:#91aaa3; margin-top:17px; }
+    .sheet-wrap { position:absolute; inset:0; z-index:11; display:none; align-items:end; background:rgba(0,0,0,.56); }
+    .sheet-wrap.show { display:flex; }
+    .sheet { width:100%; padding:22px 22px calc(var(--safe-b) + 27px); border-radius:25px 25px 0 0; border:1px solid rgba(163,255,202,.25); background:#102222; box-shadow:0 -16px 65px rgba(0,0,0,.35); }
+    .sheet-head { display:flex; justify-content:space-between; align-items:center; }
+    .sheet h2 { font-size:19px; margin:0 0 18px; }
+    .close { border:0; background:transparent; font-size:24px; line-height:1; padding:8px; }
+    .setting { display:flex; align-items:center; justify-content:space-between; gap:15px; padding:14px 0; border-top:1px solid rgba(163,255,202,.13); font-size:13px; }
+    .setting input { accent-color:#a3ffca; width:20px; height:20px; }
+    .setting select { background:#1b3331; color:white; border:1px solid #4b7265; border-radius:8px; padding:9px; }
+    .sheet-note { font-size:11px; line-height:1.5; color:#aac4b9; margin-top:14px; }
+    .toast { position:absolute; bottom:calc(var(--safe-b) + 100px); left:18px; right:18px; z-index:14; background:rgba(1,17,19,.95); color:#e5fff2; border:1px solid rgba(163,255,202,.45); font-size:12px; line-height:1.5; border-radius:12px; padding:12px 15px; display:none; box-shadow:0 12px 30px rgba(0,0,0,.3); }
+    .toast.show { display:block; }
+    .hide-hud .hud-layer,.hide-hud .grid,.hide-hud .sweep { display:none; }
+    @media(max-width:360px){.left-data{left:12px}.right-data{right:12px}.data-value{font-size:30px}.data-value.small{font-size:22px}.reticle{width:58vw}.top{left:14px;right:14px}.brand strong{font-size:18px}}
+    @media(max-height:680px){.left-data,.right-data{top:27%}.reticle{width:min(49vw,260px);top:46%}.compass{bottom:calc(var(--safe-b) + 145px)}.bottom{bottom:calc(var(--safe-b) + 8px)}.horizon{top:64%}.top{top:calc(var(--safe-t) + 10px)}.toolbar .tool{min-height:43px}.safety{font-size:8px;margin-bottom:6px}}
+    @media(orientation:landscape){.reticle{width:min(30vw,45vh);top:48%}.left-data,.right-data{top:30%}.compass{bottom:calc(var(--safe-b) + 97px);width:33vw}.bottom{left:auto;right:calc(env(safe-area-inset-right, 0px) + 14px);bottom:calc(var(--safe-b) + 12px);width:300px}.toolbar .tool{min-height:42px}.safety{font-size:7px}.brand strong{font-size:17px}.horizon{top:76%}}
+    @media(prefers-reduced-motion:reduce){.sweep,.reticle .moving{animation:none}}
+  </style>
+</head>
+<body>
+  <main id="app" class="screen" aria-label="AEROVISION, simulador de visor HUD">
+    <div class="demo-backdrop" aria-hidden="true"></div>
+    <video id="camera" autoplay muted playsinline webkit-playsinline aria-label="Imagen de la cámara en vivo"></video>
+    <div class="vignette" aria-hidden="true"></div>
+    <div class="grid" aria-hidden="true"></div>
+    <div class="sweep" aria-hidden="true"></div>
+
+    <header class="top">
+      <div class="brand mono">HUD LAB / 001<strong>AEROVISION</strong><span class="subbrand">INTERFAZ EXPERIMENTAL</span></div>
+      <div class="mode mono"><span class="chip">SIMULACIÓN</span><span id="mode" class="chip live-indicator">DEMO</span></div>
+    </header>
+
+    <section class="hud-layer" aria-label="Telemetría simulada">
+      <div class="left-data">
+        <div><div class="data-label mono">VELOCIDAD</div><div id="speed" class="data-value">082</div><span class="data-unit mono">KM/H · SIM</span><div class="data-bar"><span id="speedbar" class="data-fill"></span></div></div>
+        <div><div class="data-label mono">MOTOR</div><div id="rpm" class="data-value small">5.240</div><span class="data-unit mono">RPM · SIM</span></div>
+      </div>
+      <div class="right-data">
+        <div><div class="data-label mono">ALTITUD</div><div id="alt" class="data-value">0128</div><span class="data-unit mono">M · SIM</span></div>
+        <div><div class="data-label mono">RUMBO</div><div id="heading" class="data-value small">074°</div><span class="data-unit mono">GRADOS · SIM</span></div>
+      </div>
+      <div class="reticle" aria-hidden="true">
+        <svg viewBox="0 0 300 300">
+          <circle cx="150" cy="150" r="93" class="dim" stroke-dasharray="6 12"/>
+          <circle cx="150" cy="150" r="58" class="dim"/>
+          <circle cx="150" cy="150" r="14" class="moving"/>
+          <path class="strong" d="M49 92 V49 H92 M208 49 H251 V92 M49 208 V251 H92 M208 251 H251 V208"/>
+          <path d="M150 31 V79 M150 221 V269 M31 150 H79 M221 150 H269"/>
+          <path d="M132 150 H168 M150 132 V168" class="strong"/>
+          <path d="M89 150 H109 M191 150 H211 M150 89 V109 M150 191 V211"/>
+          <path d="M112 148 L126 148 M174 148 L188 148" class="dim"/>
+        </svg>
+      </div>
+      <div class="target mono" id="target" aria-hidden="true"><div class="boxmark"></div><div class="target-label">OBJETIVO SIM / 01</div></div>
+      <div class="horizon mono">REFERENCIA VISUAL</div>
+      <div class="compass mono"><div class="compass-caption">ORIENTACIÓN SIMULADA · <span id="compasshead">074°</span></div><div class="compass-track"><span>NW</span><span>330</span><span>N</span><span>030</span><span>NE</span></div></div>
+    </section>
+
+    <footer class="bottom">
+      <div class="safety mono">DATOS FICTICIOS · NO UTILIZAR PARA CONDUCIR</div>
+      <nav class="toolbar" aria-label="Controles del HUD">
+        <button class="tool primary" id="cameraBtn" type="button"><svg viewBox="0 0 24 24"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg><span id="cameraText">Cámara</span></button>
+        <button class="tool" id="flipBtn" type="button"><svg viewBox="0 0 24 24"><path d="M4 10V5l3-3M4 5h10a6 6 0 0 1 6 6M20 14v5l-3 3m3-3H10a6 6 0 0 1-6-6"/></svg><span>Girar</span></button>
+        <button class="tool" id="demoBtn" type="button"><svg viewBox="0 0 24 24"><path d="M3 8V4h4M21 8V4h-4M3 16v4h4M21 16v4h-4M3 12h18"/></svg><span>Demo</span></button>
+        <button class="tool" id="settingsBtn" type="button"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="#102222"/><circle cx="15" cy="12" r="2" fill="#102222"/><circle cx="9" cy="18" r="2" fill="#102222"/></svg><span>Opciones</span></button>
+      </nav>
+    </footer>
+
+    <div id="welcome" class="welcome" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+      <div class="welcome-card"><div class="eyebrow">PROTOTIPO / HUD 01</div><h1 id="welcomeTitle">Tu cámara.<br>Otro nivel.</h1><p>Visualización en vivo con un HUD estilo aviación. Los instrumentos son simulados y se actualizan automáticamente.</p><button id="startBtn" class="cta" type="button">Activar cámara en vivo →</button><button id="previewBtn" class="secondary" type="button">Explorar sin cámara</button><small>La cámara se utiliza únicamente en tu dispositivo. No grabamos, almacenamos ni enviamos imágenes.</small></div>
+    </div>
+
+    <div id="settings" class="sheet-wrap" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="sheet"><div class="sheet-head"><h2 id="settingsTitle">Opciones del HUD</h2><button class="close" id="closeSettings" aria-label="Cerrar opciones" type="button">×</button></div>
+        <label class="setting">Color de los indicadores <select id="theme"><option value="green">Verde táctico</option><option value="cyan">Cian</option><option value="amber">Ámbar</option></select></label>
+        <label class="setting">Mostrar indicadores <input id="hudToggle" type="checkbox" checked></label>
+        <label class="setting">Animar datos simulados <input id="animateToggle" type="checkbox" checked></label>
+        <p class="sheet-note">Este prototipo no mide velocidad, altitud, RPM ni detecta objetos. Todos esos valores y el recuadro de objetivo son demostrativos.</p>
+      </div>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </main>
+  <script>
+  (() => {
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const app=$('app'),video=$('camera'),welcome=$('welcome'),mode=$('mode');
+    let stream=null,face='environment',running=true,toastTimer=0,elapsed=0,lastTick=performance.now(),busy=false;
+    function message(txt){const t=$('toast');t.textContent=txt;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),6200);}
+    function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;} video.srcObject=null;app.classList.remove('camera-on');video.classList.remove('mirror');mode.textContent='DEMO';$('cameraText').textContent='Cámara';}
+    async function startCamera(){
+      if(busy)return;
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){welcome.classList.add('hidden');message('La cámara requiere Safari en una dirección HTTPS. Publicá el archivo en GitHub Pages para activarla.');return;}
+      busy=true;
+      if(stream)stopCamera();
+      try{
+        const newStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:face},width:{ideal:1280},height:{ideal:720}}});
+        stream=newStream;video.srcObject=stream;video.classList.toggle('mirror',face==='user');
+        await video.play();app.classList.add('camera-on');mode.textContent='EN VIVO';$('cameraText').textContent='Apagar';welcome.classList.add('hidden');
+      } catch(err){
+        stopCamera();welcome.classList.add('hidden');
+        const reason=err && err.name;
+        message(reason==='NotAllowedError'?'No se autorizó la cámara. Revisá el permiso de Safari para este sitio y volvé a tocar Cámara.':reason==='NotFoundError'?'No se encontró una cámara disponible.':'No fue posible abrir la cámara. Probá en Safari mediante HTTPS y verificá que otra app no la esté usando.');
+      } finally{busy=false;}
+    }
+    $('startBtn').addEventListener('click',startCamera);
+    $('previewBtn').addEventListener('click',()=>welcome.classList.add('hidden'));
+    $('cameraBtn').addEventListener('click',()=>stream?stopCamera():startCamera());
+    $('flipBtn').addEventListener('click',()=>{face=face==='environment'?'user':'environment';if(stream)startCamera();else message('Seleccionaste cámara '+(face==='environment'?'trasera':'frontal')+'. Tocá Cámara para activarla.');});
+    $('demoBtn').addEventListener('click',()=>{stopCamera();message('Modo demostración activado. Todos los indicadores son simulados.');});
+    $('settingsBtn').addEventListener('click',()=>{$('settings').classList.add('show');$('closeSettings').focus();});
+    $('closeSettings').addEventListener('click',()=>{$('settings').classList.remove('show');$('settingsBtn').focus();});
+    $('settings').addEventListener('click',e=>{if(e.target===$('settings'))$('settings').classList.remove('show');});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')$('settings').classList.remove('show');});
+    $('hudToggle').addEventListener('change',e=>app.classList.toggle('hide-hud',!e.target.checked));
+    $('animateToggle').addEventListener('change',e=>{running=e.target.checked;});
+    $('theme').addEventListener('change',e=>{const palettes={green:['#a3ffca','rgba(163,255,202,.55)','rgba(163,255,202,.22)'],cyan:['#88eaff','rgba(136,234,255,.55)','rgba(136,234,255,.22)'],amber:['#ffd57e','rgba(255,213,126,.55)','rgba(255,213,126,.22)']};const p=palettes[e.target.value];document.documentElement.style.setProperty('--hud',p[0]);document.documentElement.style.setProperty('--hud-soft',p[1]);document.documentElement.style.setProperty('--hud-muted',p[2]);});
+    function update(now){
+      const dt=Math.min((now-lastTick)/1000,.15);lastTick=now;if(running)elapsed+=dt;
+      const t=elapsed,speed=Math.round(83+15*Math.sin(t*.33)+4*Math.sin(t*1.17)),rpm=Math.round(5230+850*Math.sin(t*.46)+240*Math.cos(t*1.3)),alt=Math.round(128+17*Math.sin(t*.16)),heading=(74+Math.round(25*Math.sin(t*.12))+360)%360;
+      $('speed').textContent=String(Math.max(0,speed)).padStart(3,'0');$('rpm').textContent=Math.max(0,rpm).toLocaleString('de-DE');$('alt').textContent=String(Math.max(0,alt)).padStart(4,'0');$('heading').textContent=String(heading).padStart(3,'0')+'°';$('compasshead').textContent=String(heading).padStart(3,'0')+'°';$('speedbar').style.width=Math.max(5,Math.min(100,speed/160*100))+'%';$('target').style.transform='translate('+Math.sin(t*.48)*18+'px,'+Math.cos(t*.31)*11+'px)';
+      setTimeout(()=>requestAnimationFrame(update),100);
+    }
+    requestAnimationFrame(update);
+    window.addEventListener('pagehide',stopCamera);
+  })();
+  </script>
+</body>
+</html>
